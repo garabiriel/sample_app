@@ -1,5 +1,9 @@
 class User < ActiveRecord::Base
   has_many :microposts, dependent: :destroy
+  has_many :user_relationships, foreign_key: "follower_id", dependent: :destroy
+  has_many :followed_users, through: :user_relationships, source: :followed
+  has_many :reverse_user_relationships, foreign_key: "followed_id", class_name:  "UserRelationship", dependent: :destroy
+  has_many :followers, through: :reverse_user_relationships
 
   attr_accessible :email, :name, :password, :password_confirmation
   
@@ -15,8 +19,19 @@ class User < ActiveRecord::Base
   after_validation { self.errors.messages.delete(:password_digest) }
 
   def feed
-    # This is preliminary. See "Following users" for the full implementation.
-    Micropost.where("user_id = ?", id)
+    Micropost.from_users_followed_by(self)
+  end
+
+  def following?(other_user)
+    user_relationships.find_by_followed_id(other_user.id)
+  end
+
+  def follow!(other_user)
+    user_relationships.create!(followed_id: other_user.id)
+  end
+
+  def unfollow!(other_user)
+    user_relationships.find_by_followed_id(other_user.id).destroy
   end
 
   def User.new_remember_token
